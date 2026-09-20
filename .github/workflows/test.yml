@@ -19,16 +19,17 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '22.x'
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run linter
-        run: npm run lint
+      - name: Verify SDK and packaged examples
+        run: npm run verify
 
-      - name: Run tests
-        run: npx jest --coverage
+      - name: Collect coverage
+        run: npm test -- --coverage --runInBand
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5

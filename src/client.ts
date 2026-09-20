@@ -1,145 +1,125 @@
-import { AxiosInstance } from 'axios';
-import { createHttpClient } from './http-client';
-import {
-  ApiKeyCreateParams,
-  ApiKeyResponse,
-  UsageEventParams,
-  UsageEventResponse,
-  UsageStatsResponse,
-  ClientOptions
-} from './types';
+import { randomUUID } from "node:crypto";
+import type { AxiosInstance } from "axios";
 
-/**
- * Main client for interacting with the Usagey API
- */
-export class UsageyClient {
-  private httpClient: AxiosInstance;
-  private readonly baseUrl: string;
+import { CheckoutResource } from "./checkout";
+import { EventsResource } from "./events";
+import { UsageyError } from "./errors";
+import { createHttpClient } from "./http-client";
+import type {
+  EntitlementResponse,
+  EntitlementStatus,
+  TrackOptions,
+  TrackUsageRequest,
+  TrackUsageResponse,
+  UsageRequest,
+  UsageyOptions,
+} from "./types";
 
-  /**
-   * Create a new Usagey client instance
-   * 
-   * @param apiKey Your Usagey API key
-   * @param options Additional client options
-   */
-  constructor(apiKey: string, options: ClientOptions = {}) {
-    this.baseUrl = options.baseUrl || 'https://api.usagey.com';
-    this.httpClient = createHttpClient(apiKey, this.baseUrl);
+const API_BASE_URLS = {
+  production: "https://api.usagey.com/v1",
+  sandbox: "https://sandbox.usagey.com/v1",
+} as const;
+
+function inferEnvironment(apiKey: string) {
+  return apiKey.startsWith("usg_test_") ? "sandbox" : "production";
+}
+
+const entitlementStatuses = new Set<EntitlementStatus>([
+  "access_granted",
+  "limit_exceeded",
+  "feature_not_in_plan",
+  "no_active_subscription",
+  "customer_not_found",
+  "feature_not_found",
+  "insufficient_credits",
+  "account_limit_exceeded",
+]);
+
+function isEntitlementResponse(value: unknown): value is EntitlementResponse {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as { status?: unknown; quantity?: unknown };
+  return (
+    typeof candidate.status === "string" &&
+    entitlementStatuses.has(candidate.status as EntitlementStatus) &&
+    typeof candidate.quantity === "number"
+  );
+}
+
+function domainResponseFromError(error: unknown) {
+  if (error instanceof UsageyError && isEntitlementResponse(error.data)) {
+    return error.data;
   }
 
-  /**
-   * Track a usage event
-   * 
-   * @param eventType The type of event to track
-   * @param quantity The quantity of the event (default: 1)
-   * @param metadata Additional metadata for the event
-   * @returns Promise resolving to the created event
-   */
-  async trackEvent(
-    eventType: string,
-    quantity: number = 1,
-    metadata?: Record<string, any>
-  ): Promise<UsageEventResponse> {
-    const payload: UsageEventParams = {
-      event_type: eventType,
-      quantity,
-      metadata
-    };
+  throw error;
+}
 
-    const response = await this.httpClient.post('/api/usage', payload);
-    return response.data;
-  }
+/** Server-side client for Usagey's public entitlement and metering APIs. */
+export class Usagey {
+  private readonly httpClient: AxiosInstance;
+  readonly checkout: CheckoutResource;
+  readonly events: EventsResource;
 
-  /**
-   * Create a new API key
-   * 
-   * @param name A descriptive name for the API key
-   * @param organizationId The ID of the organization to create the key for
-   * @param expiresAt Optional expiration date for the key
-   * @returns Promise resolving to the created API key
-   */
-  async createApiKey(
-    name: string,
-    organizationId: string,
-    expiresAt?: Date
-  ): Promise<ApiKeyResponse> {
-    const payload: ApiKeyCreateParams = {
-      name,
-      organizationId,
-      expiresAt: expiresAt?.toISOString()
-    };
-
-    const response = await this.httpClient.post('/api/api-keys', payload);
-    return response.data;
-  }
-
-  /**
-   * Regenerate an existing API key
-   * 
-   * @param apiKeyId The ID of the API key to regenerate
-   * @returns Promise resolving to the regenerated API key
-   */
-  async regenerateApiKey(apiKeyId: string): Promise<ApiKeyResponse> {
-    const response = await this.httpClient.post(`/api/api-keys/${apiKeyId}/regenerate`);
-    return response.data;
-  }
-
-  /**
-   * Delete an API key
-   * 
-   * @param apiKeyId The ID of the API key to delete
-   * @returns Promise resolving to a success indicator
-   */
-  async deleteApiKey(apiKeyId: string): Promise<{ success: boolean }> {
-    const response = await this.httpClient.delete(`/api/api-keys/${apiKeyId}`);
-    return response.data;
-  }
-
-  /**
-   * Get usage statistics for the current user
-   * 
-   * @returns Promise resolving to usage statistics
-   */
-  async getUsageStats(): Promise<UsageStatsResponse> {
-    const response = await this.httpClient.get('/api/usage/stats');
-    return response.data;
-  }
-
-  /**
-   * Get usage events with optional filtering
-   * 
-   * @param options Optional parameters for filtering usage events
-   * @returns Promise resolving to a list of usage events
-   */
-  async getUsageEvents(options: {
-    eventType?: string;
-    startDate?: string | Date;
-    endDate?: string | Date;
-    limit?: number;
-  } = {}): Promise<{ success: boolean; data: any[] }> {
-    const params: Record<string, string | number> = {};
-    
-    if (options.eventType) {
-      params.event_type = options.eventType;
-    }
-    
-    if (options.startDate) {
-      params.start_date = options.startDate instanceof Date 
-        ? options.startDate.toISOString() 
-        : options.startDate;
-    }
-    
-    if (options.endDate) {
-      params.end_date = options.endDate instanceof Date 
-        ? options.endDate.toISOString() 
-        : options.endDate;
-    }
-    
-    if (options.limit) {
-      params.limit = options.limit;
+  constructor(apiKey: string, options: UsageyOptions = {}) {
+    if (!apiKey.trim()) {
+      throw new Error("A Usagey API key is required.");
     }
 
-    const response = await this.httpClient.get('/api/usage', { params });
-    return response.data;
+    this.httpClient = createHttpClient(
+      apiKey,
+      options.baseUrl || API_BASE_URLS[options.environment ?? inferEnvironment(apiKey)],
+      options.timeoutMs,
+    );
+    this.checkout = new CheckoutResource(this.httpClient);
+    this.events = new EventsResource(this.httpClient);
+  }
+
+  /** Evaluate an entitlement without recording usage. */
+  async check(input: UsageRequest): Promise<EntitlementResponse> {
+    try {
+      const response = await this.httpClient.post<EntitlementResponse>(
+        "usage/check",
+        input,
+      );
+      return response.data;
+    } catch (error) {
+      return domainResponseFromError(error);
+    }
+  }
+
+  /** Record accepted usage and apply quota, credit, and overage behavior. */
+  async track(
+    input: TrackUsageRequest,
+    options: TrackOptions = {},
+  ): Promise<TrackUsageResponse> {
+    try {
+      const response = await this.httpClient.post<TrackUsageResponse>(
+        "usage/track",
+        input,
+        {
+          headers: {
+            "Idempotency-Key": options.idempotencyKey || randomUUID(),
+          },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      const result = domainResponseFromError(error);
+      return {
+        ...result,
+        replayed:
+          typeof (result as TrackUsageResponse).replayed === "boolean"
+            ? (result as TrackUsageResponse).replayed
+            : false,
+      };
+    }
+  }
+
+  /** Alias for track, retained for concise metering integrations. */
+  meter(input: TrackUsageRequest, options?: TrackOptions) {
+    return this.track(input, options);
   }
 }
+
+/** @deprecated Use Usagey instead. */
+export class UsageyClient extends Usagey {}

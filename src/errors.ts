@@ -1,65 +1,71 @@
-/**
- * Base error class for all Usagey SDK errors
- */
 export class UsageyError extends Error {
   readonly code: string;
-  readonly data?: any;
+  readonly statusCode?: number;
+  readonly data?: unknown;
 
-  constructor(message: string, code: string = 'unknown_error', data?: any) {
+  constructor(
+    message: string,
+    code = "unknown_error",
+    data?: unknown,
+    statusCode?: number,
+  ) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
     this.data = data;
-    
-    // This is necessary for proper error subclassing in TypeScript
-    Object.setPrototypeOf(this, UsageyError.prototype);
+    this.statusCode = statusCode;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-/**
- * Error thrown when authentication fails (invalid API key)
- */
 export class AuthenticationError extends UsageyError {
-  constructor(message: string = 'Invalid API key or authentication failed') {
-    super(message, 'authentication_error');
-    Object.setPrototypeOf(this, AuthenticationError.prototype);
+  constructor(
+    message = "Invalid API key or authentication failed",
+    data?: unknown,
+  ) {
+    super(message, "authentication_error", data, 401);
   }
 }
 
-/**
- * Error thrown when rate limits are exceeded
- */
+export interface RateLimitDetails {
+  retryAfter?: number;
+  limit?: number;
+  remaining?: number;
+}
+
 export class RateLimitError extends UsageyError {
   readonly retryAfter?: number;
   readonly limit?: number;
   readonly remaining?: number;
 
-  constructor(message: string = 'Rate limit exceeded', data?: any) {
-    super(message, 'rate_limit_error', data);
-    
-    if (data) {
-      this.retryAfter = data.retry_after;
-      this.limit = data.limit;
-      this.remaining = data.remaining;
-    }
-    
-    Object.setPrototypeOf(this, RateLimitError.prototype);
+  constructor(
+    message = "Rate limit exceeded",
+    data?: unknown,
+    details: RateLimitDetails = {},
+  ) {
+    super(message, "rate_limit_error", data, 429);
+    const record = data && typeof data === "object"
+      ? (data as Record<string, unknown>)
+      : {};
+    this.retryAfter = details.retryAfter ?? numberValue(record.retry_after);
+    this.limit = details.limit ?? numberValue(record.limit);
+    this.remaining = details.remaining ?? numberValue(record.remaining);
   }
 }
 
-/**
- * Error thrown when request validation fails
- */
-export class ValidationError extends UsageyError {
-  readonly errors?: Record<string, string[]>;
+function numberValue(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
 
-  constructor(message: string = 'Validation failed', data?: any) {
-    super(message, 'validation_error', data);
-    
-    if (data && data.details) {
-      this.errors = data.details;
-    }
-    
-    Object.setPrototypeOf(this, ValidationError.prototype);
+export class ValidationError extends UsageyError {
+  readonly errors?: unknown;
+
+  constructor(message = "Validation failed", data?: unknown) {
+    super(message, "validation_error", data, 400);
+    this.errors =
+      data && typeof data === "object" && "details" in data
+        ? (data as { details: unknown }).details
+        : undefined;
   }
 }

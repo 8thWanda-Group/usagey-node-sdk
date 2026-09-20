@@ -1,10 +1,10 @@
 # Source
 src/
 tests/
-examples/
 
 # Config files
 tsconfig.json
+examples/tsconfig.json
 jest.config.js
 .eslintrc.js
 .prettierrc
