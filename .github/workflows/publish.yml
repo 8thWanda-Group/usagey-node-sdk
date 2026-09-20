@@ -11,7 +11,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "22.x"
+          cache: npm
 
       - name: Create .npmrc file
         run: |
@@ -23,11 +24,11 @@ jobs:
         env:
           NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
 
-      - name: Run tests
-        run: npm test
+      - name: Verify SDK and packaged examples
+        run: npm run verify
 
-      - name: Build
-        run: npm run build
+      - name: Inspect package contents
+        run: npm pack --dry-run
 
       - name: Get current package version
         id: current_version

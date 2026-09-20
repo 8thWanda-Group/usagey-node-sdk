@@ -1,8 +1,12 @@
-import { UsageyClient } from './client';
-import { UsageyError, AuthenticationError, RateLimitError, ValidationError } from './errors';
-import * as Types from './types';
+export { Usagey, UsageyClient } from "./client";
+export { CheckoutResource } from "./checkout";
+export { EventsResource } from "./events";
+export {
+  AuthenticationError,
+  RateLimitError,
+  UsageyError,
+  ValidationError,
+} from "./errors";
+export type * from "./types";
 
-export { UsageyClient, UsageyError, AuthenticationError, RateLimitError, ValidationError, Types };
-
-// Default export for easier importing
-export default UsageyClient;
+export { Usagey as default } from "./client";

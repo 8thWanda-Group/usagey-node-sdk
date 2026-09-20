@@ -1,131 +1,146 @@
-/**
- * Options for configuring the Usagey client
- */
-export interface ClientOptions {
-  /**
-   * Base URL for the Usagey API
-   * @default 'https://api.usagey.com'
-   */
+export interface UsageyOptions {
+  /** Selects the canonical API host. Inferred from usg_test_ and usg_live_ keys. */
+  environment?: "sandbox" | "production";
+  /** Override the versioned API root, for example http://localhost:3000/v1. */
   baseUrl?: string;
+  /** @default 10000 */
+  timeoutMs?: number;
 }
 
-/**
- * Parameters for creating a usage event
- */
-export interface UsageEventParams {
-  /**
-   * The type of event to track
-   */
-  event_type: string;
-  
-  /**
-   * The quantity of the event
-   * @default 1
-   */
+export type CustomerSelector =
+  | { customerId: string; externalId?: never; email?: never }
+  | { customerId?: never; externalId: string; email?: never }
+  | { customerId?: never; externalId?: never; email: string };
+
+export type UsageRequest = CustomerSelector & {
+  feature: string;
   quantity?: number;
-  
-  /**
-   * Additional metadata for the event
-   */
-  metadata?: Record<string, any>;
+  source?: string;
+};
+
+export type TrackUsageRequest = UsageRequest & {
+  metadata?: Record<string, unknown>;
+};
+
+export interface TrackOptions {
+  /** Reuse the same key when retrying the same event. */
+  idempotencyKey?: string;
 }
 
-/**
- * Response from tracking a usage event
- */
-export interface UsageEventResponse {
-  /**
-   * Whether the event was successfully recorded
-   */
-  success: boolean;
-  
-  /**
-   * The ID of the recorded event
-   */
-  event_id: string;
-  
-  /**
-   * The timestamp when the event was recorded
-   */
-  timestamp: string;
+export type CreateCheckoutRequest = {
+  customerId: string;
+  providerConnectionId?: string;
+  successUrl: string;
+  cancelUrl: string;
+} & (
+  | { planId: string; creditPackId?: never }
+  | { planId?: never; creditPackId: string }
+);
+
+export interface CheckoutOptions {
+  /** Reuse the same key when retrying the same checkout creation. */
+  idempotencyKey?: string;
 }
 
-/**
- * Parameters for creating an API key
- */
-export interface ApiKeyCreateParams {
-  /**
-   * A descriptive name for the API key
-   */
-  name: string;
-  
-  /**
-   * The ID of the organization to create the key for
-   */
-  organizationId: string;
-  
-  /**
-   * Optional expiration date for the key
-   */
-  expiresAt?: string;
+export interface CheckoutResponse {
+  checkoutUrl: string;
+  externalId: string;
+  transactionId: string;
+  provider: "PAYPAL" | "STRIPE" | "PAYSTACK";
+  replayed: boolean;
 }
 
-/**
- * Response from creating or regenerating an API key
- */
-export interface ApiKeyResponse {
-  /**
-   * The ID of the API key
-   */
+export type DeveloperEventType =
+  | "USAGE_TRACK"
+  | "USAGE_CHECK"
+  | "SUBSCRIPTION_CREATED"
+  | "SUBSCRIPTION_UPDATED"
+  | "SUBSCRIPTION_CANCELLED"
+  | "CREDIT_PURCHASED"
+  | "CHECKOUT_CREATED"
+  | "WEBHOOK_RECEIVED"
+  | "WEBHOOK_PROCESSED"
+  | "REFUND_CREATED"
+  | "ENTITLEMENT_DENIED"
+  | "CUSTOMER_EXPORTED"
+  | "CUSTOMER_DATA_DELETED"
+  | "RETENTION_CLEANUP";
+
+export type DeveloperEventStatus = "SUCCESS" | "ERROR" | "PENDING";
+
+export interface DeveloperEvent {
   id: string;
-  
-  /**
-   * The name of the API key
-   */
-  name: string;
-  
-  /**
-   * The API key value (only returned when creating or regenerating)
-   */
-  key: string;
-  
-  /**
-   * When the API key was created
-   */
+  billingWorkspaceId: string;
+  featureId: string | null;
+  customerId: string | null;
+  apiKeyId: string | null;
+  eventType: DeveloperEventType;
+  status: DeveloperEventStatus;
+  message: string | null;
+  idempotencyKey: string | null;
+  source: string | null;
+  metadata: unknown;
   createdAt: string;
-  
-  /**
-   * When the API key expires (if applicable)
-   */
-  expiresAt?: string;
 }
 
-/**
- * Response from getting usage statistics
- */
-export interface UsageStatsResponse {
-  /**
-   * Usage statistics
-   */
-  usage: {
-    /**
-     * Current usage amount
-     */
-    currentUsage: number;
-    
-    /**
-     * Usage limit based on subscription plan
-     */
-    limit: number;
-    
-    /**
-     * Percentage of limit used
-     */
-    percentage: number;
-    
-    /**
-     * Name of the current subscription plan
-     */
-    plan: string;
-  };
+export interface ListDeveloperEventsOptions {
+  take?: number;
+  cursor?: string;
+  eventType?: DeveloperEventType;
+  status?: DeveloperEventStatus;
+  search?: string;
+}
+
+export interface DeveloperEventPage {
+  events: DeveloperEvent[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+export type EntitlementStatus =
+  | "access_granted"
+  | "limit_exceeded"
+  | "feature_not_in_plan"
+  | "no_active_subscription"
+  | "customer_not_found"
+  | "feature_not_found"
+  | "insufficient_credits"
+  | "account_limit_exceeded";
+
+export interface AccountQuota {
+  mode: "shadow" | "enforce";
+  plan: string;
+  limit: number | null;
+  allowance: number;
+  used: number;
+  remaining: number | null;
+  resetAt: string;
+  exceeded: boolean;
+}
+
+export interface OverageDecision {
+  policy: string;
+  quantity: number;
+  incrementalQuantity?: number | null;
+  estimatedCharge?: number | null;
+  currency?: string | null;
+  ratingModel?: string | null;
+}
+
+export interface EntitlementResponse {
+  status: EntitlementStatus;
+  quantity: number;
+  customerId?: string;
+  featureId?: string;
+  subscriptionId?: string;
+  currentUsage?: number;
+  limit?: number | null;
+  remaining?: number | null;
+  creditsRemaining?: number | null;
+  accountQuota?: AccountQuota;
+  overage?: OverageDecision | null;
+}
+
+export interface TrackUsageResponse extends EntitlementResponse {
+  replayed: boolean;
 }

@@ -1,137 +1,178 @@
 # Usagey Node.js SDK
-[![Test](https://github.com/8thwanda/usagey-node-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/8thwanda/usagey-node-sdk/actions/workflows/test.yml)
-[![npm version](https://img.shields.io/npm/v/usagey.svg)](https://www.npmjs.com/package/usagey)
-[![codecov](https://codecov.io/gh/8thwanda/usagey-node-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/8thwanda/usagey-node-sdk)
 
-The official Node.js SDK for [Usagey](https://usagey.com) - the complete toolkit for implementing usage-based pricing.
+The official server-side TypeScript SDK for Usagey entitlement checks and usage metering.
 
-## Installation
+## Install
 
 ```bash
 npm install usagey
-# or
-yarn add usagey
 ```
 
-## Quick Start
+Node.js 20 or newer is required. Keep Usagey secret keys on your server.
 
-```typescript
-import { UsageyClient } from 'usagey';
+## Quick start
 
-// Initialize the client with your API key
-const usagey = new UsageyClient('your_api_key');
+```ts
+import { Usagey } from "usagey";
 
-// Track a usage event
-async function trackApiCall() {
-  try {
-    const result = await usagey.trackEvent('api_call', 1, {
-      endpoint: '/users',
-      method: 'GET'
-    });
-    console.log('Event tracked:', result.event_id);
-  } catch (error) {
-    console.error('Error tracking event:', error);
-  }
+const usagey = new Usagey(process.env.USAGEY_API_KEY!);
+
+const entitlement = await usagey.check({
+  externalId: "customer-42",
+  feature: "api_requests",
+});
+
+if (entitlement.status === "access_granted") {
+  // Run the billable operation, then record successful usage.
+  await usagey.track(
+    {
+      externalId: "customer-42",
+      feature: "api_requests",
+      quantity: 1,
+      metadata: { route: "/v1/embeddings" },
+    },
+    { idempotencyKey: "request_01JEXAMPLE" },
+  );
 }
 ```
 
-## Features
+Use exactly one customer selector in each request: `customerId`, `externalId`, or `email`.
 
-- **Usage Tracking**: Track usage events with custom metadata
-- **API Key Management**: Create, regenerate, and delete API keys
-- **Usage Statistics**: Retrieve usage statistics and limits
-- **Type Safety**: Written in TypeScript with full type definitions
-- **Error Handling**: Detailed error types for better error handling
+## Check without consuming usage
 
-## API Reference
+```ts
+const result = await usagey.check({
+  email: "customer@example.com",
+  feature: "exports",
+  quantity: 1,
+});
 
-### Initialization
+if (result.status !== "access_granted") {
+  console.log(result.status, result.remaining);
+}
+```
 
-```typescript
-import { UsageyClient } from 'usagey';
+## Track usage
 
-const usagey = new UsageyClient('your_api_key', {
-  baseUrl: 'https://api.usagey.com'
+```ts
+const result = await usagey.track(
+  {
+    customerId: "cus_123",
+    feature: "ai_tokens",
+    quantity: 800,
+    source: "generation-worker",
+  },
+  { idempotencyKey: "generation_job_456" },
+);
+```
+
+`meter` is an alias for `track`:
+
+```ts
+await usagey.meter({
+  externalId: "customer-42",
+  feature: "api_requests",
 });
 ```
 
-### Tracking Usage Events
+When no idempotency key is supplied, the SDK generates one for that request. Supply and reuse your own key when your application may retry the same operation.
 
-```typescript
-// Basic usage
-await usagey.trackEvent('api_call');
+## Create a checkout
 
-// With quantity
-await usagey.trackEvent('data_processing', 5);
+Create a hosted checkout for either a plan or a one-time credit pack:
 
-// With metadata
-await usagey.trackEvent('storage', 10, {
-  fileType: 'image',
-  sizeInBytes: 1024000
-});
-```
-
-### Managing API Keys
-
-```typescript
-// Create a new API key
-const newKey = await usagey.createApiKey('Production API Key', 'org_123456');
-
-// Create an API key with expiration
-const expiringKey = await usagey.createApiKey(
-  'Temporary API Key',
-  'org_123456',
-  new Date('2023-12-31')
+```ts
+const checkout = await usagey.checkout.create(
+  {
+    customerId: "cus_123",
+    creditPackId: "pack_credits_10k",
+    successUrl: "https://app.example.com/billing/success",
+    cancelUrl: "https://app.example.com/billing/cancel",
+  },
+  { idempotencyKey: "credit-order-456" },
 );
 
-// Regenerate an API key
-const regeneratedKey = await usagey.regenerateApiKey('key_123456');
-
-// Delete an API key
-await usagey.deleteApiKey('key_123456');
+console.log(checkout.checkoutUrl);
 ```
 
-### Retrieving Usage Statistics
+Replace `creditPackId` with `planId` to create a subscription checkout. The
+customer, checkout target, provider connection, and API key must belong to the
+same Usagey environment.
 
-```typescript
-// Get current usage statistics
-const stats = await usagey.getUsageStats();
-console.log(`Current usage: ${stats.usage.currentUsage} / ${stats.usage.limit}`);
-console.log(`Usage percentage: ${stats.usage.percentage}%`);
-console.log(`Current plan: ${stats.usage.plan}`);
+## Read developer events
 
-// Get usage events with filtering
-const events = await usagey.getUsageEvents({
-  eventType: 'api_call',
-  startDate: '2023-01-01',
-  endDate: new Date(),
-  limit: 100
+```ts
+const page = await usagey.events.list({
+  eventType: "WEBHOOK_PROCESSED",
+  status: "ERROR",
+  take: 50,
+});
+
+if (page.hasMore && page.nextCursor) {
+  await usagey.events.list({ cursor: page.nextCursor });
+}
+```
+
+Event history is newest-first and scoped to the workspace represented by the API
+key. A cursor from another organization or environment is rejected.
+
+## Entitlement statuses
+
+Expected business decisions are returned as typed results rather than thrown exceptions:
+
+- `access_granted`
+- `limit_exceeded`
+- `feature_not_in_plan`
+- `no_active_subscription`
+- `customer_not_found`
+- `feature_not_found`
+- `insufficient_credits`
+- `account_limit_exceeded`
+
+Authentication, validation, network, service availability, and infrastructure rate-limit failures throw typed SDK errors.
+
+```ts
+import {
+  AuthenticationError,
+  RateLimitError,
+  UsageyError,
+  ValidationError,
+} from "usagey";
+```
+
+## Configuration
+
+```ts
+const usagey = new Usagey(process.env.USAGEY_API_KEY!, {
+  environment: "sandbox",
+  timeoutMs: 5_000,
 });
 ```
 
-## Error Handling
+`usg_test_` keys use `https://sandbox.usagey.com/v1` and `usg_live_` keys use
+`https://api.usagey.com/v1` automatically. For local development, override the
+versioned API root with `baseUrl: "http://localhost:3000/v1"`.
 
-The SDK provides specific error classes for different types of errors:
+## Migrating from 0.1
 
-```typescript
-import { UsageyClient, AuthenticationError, RateLimitError, ValidationError } from 'usagey';
+- Replace `trackEvent(eventType, quantity, metadata)` with `track` or `meter` and include a customer selector plus `feature`.
+- Replace legacy `/api/usage` assumptions with `check` and `track`.
+- Manage API keys in **Developer > API keys**. Raw secrets are revealed once and are not available through this SDK.
+- `UsageyClient` remains as a deprecated class alias, but obsolete API-key-management and usage-stat methods were removed.
 
-const usagey = new UsageyClient('your_api_key');
+See [docs.usagey.com](https://docs.usagey.com) for API contracts and integration guidance.
 
-try {
-  await usagey.trackEvent('api_call');
-} catch (error) {
-  if (error instanceof AuthenticationError) {
-    console.error('Invalid API key');
-  } else if (error instanceof RateLimitError) {
-    console.error(`Rate limit exceeded. Retry after ${error.retryAfter} seconds`);
-  } else if (error instanceof ValidationError) {
-    console.error('Validation error:', error.errors);
-  } else {
-    console.error('Unexpected error:', error);
-  }
-}
-```
+## Runnable examples
+
+The published package includes type-checked examples that use only the public SDK API:
+
+- [`examples/check-and-track.ts`](examples/check-and-track.ts)
+- [`examples/create-checkout.ts`](examples/create-checkout.ts)
+- [`examples/list-events.ts`](examples/list-events.ts)
+
+Set `USAGEY_API_KEY` to a sandbox key before running an example. The checkout
+example also requires `USAGEY_CUSTOMER_ID` and `USAGEY_CREDIT_PACK_ID` from the
+same sandbox workspace.
 
 ## License
 
