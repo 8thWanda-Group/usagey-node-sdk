@@ -55,5 +55,9 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/8thWanda-Group/usagey-node-sdk"
   }
 }
