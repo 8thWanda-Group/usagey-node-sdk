@@ -1,5 +1,5 @@
 {
-  "name": "usagey",
+  "name": "@usagey/sdk",
   "version": "0.2.0",
   "description": "Official Node.js SDK for Usagey usage metering and entitlement checks",
   "main": "dist/index.js",

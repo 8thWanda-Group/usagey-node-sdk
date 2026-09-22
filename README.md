@@ -1,5 +1,9 @@
 # Usagey Node.js SDK
 
+[![Test](https://github.com/d0nda/usagey-node-sdk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/d0nda/usagey-node-sdk/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/usagey.svg)](https://www.npmjs.com/package/usagey)
+[![codecov](https://codecov.io/gh/d0nda/usagey-node-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/d0nda/usagey-node-sdk)
+
 The official server-side TypeScript SDK for Usagey entitlement checks and usage metering.
 
 ## Install

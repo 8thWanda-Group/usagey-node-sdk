@@ -5,6 +5,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +40,7 @@ jobs:
       - name: Get published version
         id: published_version
         run: |
-          PUBLISHED_VERSION=$(npm view usagey version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(npm view @usagey/sdk version 2>/dev/null || echo "0.0.0")
           echo "version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
         env:
           NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
@@ -60,6 +63,6 @@ jobs:
 
       - name: Publish to npm
         if: steps.version_check.outputs.should_publish == 'true'
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         env:
           NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
