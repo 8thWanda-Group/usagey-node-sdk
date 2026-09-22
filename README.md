@@ -1,15 +1,15 @@
 # Usagey Node.js SDK
 
-[![Test](https://github.com/d0nda/usagey-node-sdk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/d0nda/usagey-node-sdk/actions/workflows/test.yml)
-[![npm version](https://img.shields.io/npm/v/usagey.svg)](https://www.npmjs.com/package/usagey)
-[![codecov](https://codecov.io/gh/d0nda/usagey-node-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/d0nda/usagey-node-sdk)
+[![Test](https://github.com/8thWanda-Group/usagey-node-sdk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/8thWanda-Group/usagey-node-sdk/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/%40usagey%2Fsdk.svg)](https://www.npmjs.com/package/@usagey/sdk)
+[![codecov](https://codecov.io/gh/8thWanda-Group/usagey-node-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/8thWanda-Group/usagey-node-sdk)
 
 The official server-side TypeScript SDK for Usagey entitlement checks and usage metering.
 
 ## Install
 
 ```bash
-npm install usagey
+npm install @usagey/sdk
 ```
 
 Node.js 20 or newer is required. Keep Usagey secret keys on your server.
@@ -17,7 +17,7 @@ Node.js 20 or newer is required. Keep Usagey secret keys on your server.
 ## Quick start
 
 ```ts
-import { Usagey } from "usagey";
+import { Usagey } from "@usagey/sdk";
 
 const usagey = new Usagey(process.env.USAGEY_API_KEY!);
 
@@ -141,7 +141,7 @@ import {
   RateLimitError,
   UsageyError,
   ValidationError,
-} from "usagey";
+} from "@usagey/sdk";
 ```
 
 ## Configuration
@@ -163,6 +163,21 @@ versioned API root with `baseUrl: "http://localhost:3000/v1"`.
 - Replace legacy `/api/usage` assumptions with `check` and `track`.
 - Manage API keys in **Developer > API keys**. Raw secrets are revealed once and are not available through this SDK.
 - `UsageyClient` remains as a deprecated class alias, but obsolete API-key-management and usage-stat methods were removed.
+
+## Migrating from `usagey` to `@usagey/sdk`
+
+This package was previously published as `usagey`. The API is unchanged — only
+the package name moved:
+
+```bash
+npm uninstall usagey
+npm install @usagey/sdk
+```
+
+```diff
+- import { Usagey } from "usagey";
++ import { Usagey } from "@usagey/sdk";
+```
 
 See [docs.usagey.com](https://docs.usagey.com) for API contracts and integration guidance.
 
