@@ -1,4 +1,4 @@
-import { Usagey } from "usagey";
+import { Usagey } from "@usagey/sdk";
 
 const apiKey = process.env.USAGEY_API_KEY;
 
