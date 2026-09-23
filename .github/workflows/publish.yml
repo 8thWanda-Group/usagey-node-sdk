@@ -2,21 +2,35 @@ name: Publish
 on:
   release:
     types: [created]
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+
     environment: NPM_AUTH_TOKEN
+
     permissions:
       contents: read
-      id-token: write   # required for OIDC trusted publishing + npm provenance
+      id-token: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "22.14.0"
           cache: npm
+
+      # npm trusted publishing requires a recent npm version.
+      - name: Update npm
+        run: npm install --global npm@11.5.1
+
+      - name: Check tool versions
+        run: |
+          node --version
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -29,30 +43,36 @@ jobs:
 
       - name: Get current package version
         id: current_version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Get published version
         id: published_version
+        shell: bash
         run: |
-          PUBLISHED_VERSION=$(npm view @usagey/sdk version 2>/dev/null || echo "0.0.0")
-          echo "version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
+          PUBLISHED_VERSION="$(npm view @usagey/sdk version 2>/dev/null || echo "0.0.0")"
+          echo "version=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions
         id: version_check
+        shell: bash
         run: |
           CURRENT="${{ steps.current_version.outputs.version }}"
           PUBLISHED="${{ steps.published_version.outputs.version }}"
+
           echo "Current version: $CURRENT"
           echo "Published version: $PUBLISHED"
 
           if [ "$CURRENT" != "$PUBLISHED" ]; then
-            echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "New version detected - will publish"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "New version detected; publishing package."
           else
-            echo "should_publish=false" >> $GITHUB_OUTPUT
-            echo "No version change - skipping publish"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version already published; skipping publish."
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm with trusted publishing
         if: steps.version_check.outputs.should_publish == 'true'
         run: npm publish --access public --provenance
