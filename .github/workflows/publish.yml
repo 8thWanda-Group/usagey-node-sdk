@@ -1,4 +1,5 @@
 name: Publish
+
 on:
   release:
     types: [created]
@@ -7,7 +8,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-
     environment: NPM_AUTH_TOKEN
 
     permissions:
@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.14.0"
+          registry-url: "https://registry.npmjs.org"
           cache: npm
 
       # npm trusted publishing requires a recent npm version.
@@ -73,6 +74,26 @@ jobs:
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "Version already published; skipping publish."
           fi
+
+      - name: Diagnose npm trusted publishing
+        if: steps.version_check.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -u
+
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Workflow ref: $GITHUB_REF"
+          echo "Workflow name: $GITHUB_WORKFLOW"
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "Registry: $(npm config get registry)"
+          echo "GitHub Actions: ${GITHUB_ACTIONS:-false}"
+          echo "OIDC request URL present: $([[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]] && echo yes || echo no)"
+          echo "OIDC request token present: $([[ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] && echo yes || echo no)"
+          echo "GitHub environment: NPM_AUTH_TOKEN"
+
+          echo "Relevant npm configuration:"
+          npm config list
 
       - name: Publish to npm with trusted publishing
         if: steps.version_check.outputs.should_publish == 'true'
