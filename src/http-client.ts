@@ -17,7 +17,7 @@ function responseMessage(data: unknown) {
   return "Unknown error";
 }
 
-function numericHeader(value: unknown) {
+export function numericHeader(value: unknown) {
   const normalized = Array.isArray(value) ? value[0] : value;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
