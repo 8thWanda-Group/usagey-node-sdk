@@ -25,16 +25,6 @@ jobs:
           node-version: "22.14.0"
           cache: npm
 
-      - name: Remove token-based npm configuration
-        shell: bash
-        run: |
-          unset NODE_AUTH_TOKEN
-          rm -f "$HOME/.npmrc"
-          rm -f "$RUNNER_TEMP/.npmrc"
-
-          echo "NODE_AUTH_TOKEN was removed for this job."
-          echo "Registry: $(npm config get registry)"
-
       - name: Update npm
         run: npm install --global npm@11.5.1
 
@@ -42,7 +32,7 @@ jobs:
         run: |
           node --version
           npm --version
-          npm config get registry
+          echo "Registry: $(npm config get registry)"
 
       - name: Install dependencies
         run: npm ci
@@ -88,7 +78,7 @@ jobs:
             echo "Version already published; skipping publish."
           fi
 
-      - name: Diagnose npm trusted publishing
+      - name: Diagnose trusted publishing
         if: steps.version_check.outputs.should_publish == 'true'
         shell: bash
         run: |
@@ -103,22 +93,8 @@ jobs:
           echo "GitHub Actions: ${GITHUB_ACTIONS:-false}"
           echo "OIDC request URL present: $([[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]] && echo yes || echo no)"
           echo "OIDC request token present: $([[ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] && echo yes || echo no)"
-          echo "NODE_AUTH_TOKEN present: $([[ -n "${NODE_AUTH_TOKEN:-}" ]] && echo yes || echo no)"
-
-          if [ -f "$HOME/.npmrc" ]; then
-            echo "Unexpected user npm configuration exists."
-          else
-            echo "No user npm configuration exists."
-          fi
-
-          if [ -f "$RUNNER_TEMP/.npmrc" ]; then
-            echo "Unexpected temporary npm configuration exists."
-          else
-            echo "No temporary npm configuration exists."
-          fi
+          echo "GitHub environment: NPM_AUTH_TOKEN"
 
       - name: Publish to npm with trusted publishing
         if: steps.version_check.outputs.should_publish == 'true'
-        env:
-          NODE_AUTH_TOKEN: ""
         run: npm publish --access public --provenance
