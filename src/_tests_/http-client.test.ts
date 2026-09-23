@@ -153,6 +153,79 @@ describe('HTTP Client', () => {
       });
     });
 
+    it('should handle 409 idempotency conflict error', async () => {
+      nock(BASE_URL)
+        .get('/test')
+        .reply(409, { message: 'Idempotency key reused' });
+
+      nock(BASE_URL)
+        .get('/test')
+        .reply(409, { message: 'Idempotency key reused' });
+
+      const client = createHttpClient(API_KEY, BASE_URL);
+      await expect(client.get('/test')).rejects.toThrow(UsageyError);
+      await expect(client.get('/test')).rejects.toMatchObject({
+        code: 'idempotency_conflict',
+      });
+    });
+
+    it('should handle 503 service unavailable error', async () => {
+      nock(BASE_URL)
+        .get('/test')
+        .reply(503, { message: 'Service unavailable' });
+
+      nock(BASE_URL)
+        .get('/test')
+        .reply(503, { message: 'Service unavailable' });
+
+      const client = createHttpClient(API_KEY, BASE_URL);
+      await expect(client.get('/test')).rejects.toThrow(UsageyError);
+      await expect(client.get('/test')).rejects.toMatchObject({
+        code: 'service_unavailable',
+      });
+    });
+
+    it('should parse numeric rate limit headers', async () => {
+      nock(BASE_URL)
+        .get('/test')
+        .reply(429, { message: 'Rate limit exceeded' }, {
+          'retry-after': '30',
+          'ratelimit-limit': '100',
+          'ratelimit-remaining': '0',
+        });
+
+      const client = createHttpClient(API_KEY, BASE_URL);
+      await expect(client.get('/test')).rejects.toMatchObject({
+        retryAfter: 30,
+        limit: 100,
+        remaining: 0,
+      });
+    });
+
+    it('should ignore non-numeric rate limit headers', async () => {
+      nock(BASE_URL)
+        .get('/test')
+        .reply(429, { message: 'Rate limit exceeded' }, {
+          'retry-after': 'not-a-number',
+        });
+
+      const client = createHttpClient(API_KEY, BASE_URL);
+      await expect(client.get('/test')).rejects.toMatchObject({
+        retryAfter: undefined,
+      });
+    });
+
+    it('should handle a non-string, non-object error response', async () => {
+      nock(BASE_URL)
+        .get('/test')
+        .reply(400, '42', { 'Content-Type': 'application/json' });
+
+      const client = createHttpClient(API_KEY, BASE_URL);
+      await expect(client.get('/test')).rejects.toMatchObject({
+        message: 'Unknown error',
+      });
+    });
+
     it('should throw UsageyError on other HTTP errors', async () => {
       nock(BASE_URL)
         .get('/test')

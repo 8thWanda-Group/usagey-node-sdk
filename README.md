@@ -1,4 +1,4 @@
-# Usagey Node.js SDK
+# Official Usagey Node.js SDK
 
 [![Test](https://github.com/8thWanda-Group/usagey-node-sdk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/8thWanda-Group/usagey-node-sdk/actions/workflows/test.yml)
 [![npm version](https://img.shields.io/npm/v/%40usagey%2Fsdk.svg)](https://www.npmjs.com/package/@usagey/sdk)

@@ -62,6 +62,17 @@ describe('Error classes', () => {
       expect(error.limit).toBe(100);
       expect(error.remaining).toBe(0);
     });
+
+    it('should prefer explicit details over parsed response data', () => {
+      const error = new RateLimitError('Too many requests', undefined, {
+        retryAfter: 30,
+        limit: 50,
+        remaining: 5,
+      });
+      expect(error.retryAfter).toBe(30);
+      expect(error.limit).toBe(50);
+      expect(error.remaining).toBe(5);
+    });
   });
 
   describe('ValidationError', () => {

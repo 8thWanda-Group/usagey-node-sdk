@@ -5,9 +5,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: NPM_AUTH_TOKEN
     permissions:
       contents: read
-      id-token: write   # required for npm provenance
+      id-token: write   # required for OIDC trusted publishing + npm provenance
     steps:
       - uses: actions/checkout@v4
 
@@ -17,15 +18,8 @@ jobs:
           node-version: "22.x"
           cache: npm
 
-      - name: Create .npmrc file
-        run: |
-          echo "//registry.npmjs.org/:_authToken=\${NPM_AUTH_TOKEN}" > .npmrc
-          echo "registry=https://registry.npmjs.org/" >> .npmrc
-
       - name: Install dependencies
         run: npm ci
-        env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
 
       - name: Verify SDK and packaged examples
         run: npm run verify
@@ -42,8 +36,6 @@ jobs:
         run: |
           PUBLISHED_VERSION=$(npm view @usagey/sdk version 2>/dev/null || echo "0.0.0")
           echo "version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
-        env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
 
       - name: Compare versions
         id: version_check
@@ -64,5 +56,3 @@ jobs:
       - name: Publish to npm
         if: steps.version_check.outputs.should_publish == 'true'
         run: npm publish --access public --provenance
-        env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}

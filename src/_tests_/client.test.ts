@@ -148,6 +148,26 @@ describe("Usagey", () => {
     });
   });
 
+  it("rethrows errors with no response data", async () => {
+    nock(baseUrl).post("/usage/check").replyWithError("Network error");
+
+    await expect(
+      client.check({ customerId: "cus_123", feature: "tokens" }),
+    ).rejects.toThrow("Network error");
+  });
+
+  it("defaults replayed to false when the domain response omits it", async () => {
+    nock(baseUrl).post("/usage/track").reply(400, {
+      status: "feature_not_in_plan",
+      quantity: 1,
+      overage: null,
+    });
+
+    await expect(
+      client.track({ customerId: "cus_123", feature: "tokens" }),
+    ).resolves.toMatchObject({ replayed: false });
+  });
+
   it("throws authentication failures", async () => {
     nock(baseUrl).post("/usage/check").reply(401, {
       error: "Invalid billing API key.",

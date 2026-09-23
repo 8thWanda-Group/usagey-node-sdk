@@ -51,6 +51,17 @@ describe("EventsResource", () => {
     expect(scope.isDone()).toBe(true);
   });
 
+  it("lists events with no options", async () => {
+    const scope = nock("https://usagey.test")
+      .get("/v1/events")
+      .reply(200, { events: [], hasMore: false, nextCursor: null });
+
+    const usagey = new Usagey("usg_test_secret", { baseUrl });
+    await usagey.events.list();
+
+    expect(scope.isDone()).toBe(true);
+  });
+
   it("requests the next cursor page", async () => {
     const scope = nock("https://usagey.test")
       .get("/v1/events")
@@ -63,4 +74,3 @@ describe("EventsResource", () => {
     expect(scope.isDone()).toBe(true);
   });
 });
-
